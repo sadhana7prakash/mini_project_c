@@ -30,11 +30,18 @@ int main()
     FILE *cfPtr;
     unsigned int choice;
 
-    if ((cfPtr = fopen("credit.dat","rb+")) == NULL)
+    cfPtr = fopen("credit.dat","rb+");
+
+if (cfPtr == NULL)
+{
+    cfPtr = fopen("credit.dat","wb+");   
+    
+    if (cfPtr == NULL)
     {
-        printf("File could not be opened.\n");
+        printf("File could not be created.\n");
         exit(1);
     }
+}
 
     while((choice = enterChoice()) != 12)
     {
@@ -46,6 +53,7 @@ int main()
             case 7:
             {
                 int acc;
+                printf("Enter account: ");
                 scanf("%d",&acc);
                 miniStatement(acc);
                 break;
@@ -58,6 +66,7 @@ int main()
             case 11:
             {
                 int acc;
+                printf("Enter account: ");
                 scanf("%d",&acc);
                 ghostSimulation(acc);
                 streakTracker(acc);
@@ -67,6 +76,7 @@ int main()
     }
 
     fclose(cfPtr);
+    return 0;
 }
 
 unsigned int enterChoice(void)
@@ -84,13 +94,19 @@ unsigned int enterChoice(void)
 
 void deposit(FILE *fPtr)
 {
-    struct clientData c={0};
+    struct clientData c = {0};
     int acc; double amt;
 
     printf("Account: "); scanf("%d",&acc);
 
     fseek(fPtr,(acc-1)*sizeof(c),SEEK_SET);
     fread(&c,sizeof(c),1,fPtr);
+
+    if(c.acctNum == 0)
+    {
+        printf("Account not found\n");
+        return;
+    }
 
     printf("Amount: "); scanf("%lf",&amt);
 
@@ -98,7 +114,7 @@ void deposit(FILE *fPtr)
 
     printf("💡 Tip: Consider saving some money!\n");
 
-    fseek(fPtr,-sizeof(c),SEEK_CUR);
+    fseek(fPtr, -(long)sizeof(c), SEEK_CUR);
     fwrite(&c,sizeof(c),1,fPtr);
 
     logTransaction(acc,amt,'D');
@@ -106,13 +122,19 @@ void deposit(FILE *fPtr)
 
 void withdraw(FILE *fPtr)
 {
-    struct clientData c={0};
+    struct clientData c = {0};
     int acc; double amt;
 
     printf("Account: "); scanf("%d",&acc);
 
     fseek(fPtr,(acc-1)*sizeof(c),SEEK_SET);
     fread(&c,sizeof(c),1,fPtr);
+
+    if(c.acctNum == 0)
+    {
+        printf("Account not found\n");
+        return;
+    }
 
     printf("Amount: "); scanf("%lf",&amt);
 
@@ -126,7 +148,7 @@ void withdraw(FILE *fPtr)
 
     printf("⚠ You spent money. Stay mindful!\n");
 
-    fseek(fPtr,-sizeof(c),SEEK_CUR);
+    fseek(fPtr, -(long)sizeof(c), SEEK_CUR);
     fwrite(&c,sizeof(c),1,fPtr);
 
     logTransaction(acc,amt,'W');
@@ -134,13 +156,19 @@ void withdraw(FILE *fPtr)
 
 void addToSavings(FILE *fPtr)
 {
-    struct clientData c={0};
+    struct clientData c = {0};
     int acc; double amt;
 
     printf("Account: "); scanf("%d",&acc);
 
     fseek(fPtr,(acc-1)*sizeof(c),SEEK_SET);
     fread(&c,sizeof(c),1,fPtr);
+
+    if(c.acctNum == 0)
+    {
+        printf("Account not found\n");
+        return;
+    }
 
     printf("Amount to save: "); scanf("%lf",&amt);
 
@@ -153,7 +181,7 @@ void addToSavings(FILE *fPtr)
     c.balance -= amt;
     c.savedAmount += amt;
 
-    fseek(fPtr,-sizeof(c),SEEK_CUR);
+    fseek(fPtr, -(long)sizeof(c), SEEK_CUR);
     fwrite(&c,sizeof(c),1,fPtr);
 
     printf("Saved successfully!\n");
@@ -161,29 +189,42 @@ void addToSavings(FILE *fPtr)
 
 void setGoal(FILE *fPtr)
 {
-    struct clientData c={0};
+    struct clientData c = {0};
     int acc;
 
-    printf("Account: "); scanf("%d",&acc);
+    printf("Account: "); 
+    scanf("%d",&acc);
 
     fseek(fPtr,(acc-1)*sizeof(c),SEEK_SET);
     fread(&c,sizeof(c),1,fPtr);
 
+    if(c.acctNum == 0)
+    {
+        printf("Account not found\n");
+        return;
+    }
+
     printf("Goal: "); scanf("%lf",&c.goalAmount);
 
-    fseek(fPtr,-sizeof(c),SEEK_CUR);
+    fseek(fPtr, -(long)sizeof(c), SEEK_CUR);
     fwrite(&c,sizeof(c),1,fPtr);
 }
 
 void viewGoal(FILE *fPtr)
 {
-    struct clientData c={0};
+    struct clientData c = {0};
     int acc;
 
     printf("Account: "); scanf("%d",&acc);
 
     fseek(fPtr,(acc-1)*sizeof(c),SEEK_SET);
     fread(&c,sizeof(c),1,fPtr);
+
+    if(c.acctNum == 0)
+    {
+        printf("Account not found\n");
+        return;
+    }
 
     printf("Goal: %.2f Saved: %.2f Remaining: %.2f\n",
            c.goalAmount,c.savedAmount,
@@ -192,17 +233,26 @@ void viewGoal(FILE *fPtr)
 
 void ghostSimulation(int acc)
 {
-    FILE *log=fopen("transactions.txt","r");
+    FILE *log = fopen("transactions.txt","r");
+    if(log == NULL)
+    {
+        printf("No transaction history found\n");
+        return;
+    }
+
     char line[200];
-    double total=0;
+    double total = 0;
 
     while(fgets(line,200,log))
     {
-        if(atoi(&line[8])==acc && strstr(line,"W"))
+        int fileAcc;
+        char type;
+        double amt;
+
+        if(sscanf(line,"Account:%d | %c | %lf",&fileAcc,&type,&amt) == 3)
         {
-            double amt;
-            sscanf(line,"Account:%*d | W | %lf",&amt);
-            total += amt;
+            if(fileAcc == acc && type == 'W')
+                total += amt;
         }
     }
 
@@ -213,26 +263,46 @@ void ghostSimulation(int acc)
 
 void streakTracker(int acc)
 {
-    FILE *log=fopen("transactions.txt","r");
+    FILE *log = fopen("transactions.txt","r");
+    if(log == NULL)
+    {
+        printf("No transaction history found\n");
+        return;
+    }
+
     char line[200];
-    int streak=0;
+    int streak = 0;
 
     while(fgets(line,200,log))
     {
-        if(atoi(&line[8])==acc && strstr(line,"W"))
-            streak = 0;
-        else
-            streak++;
+        int fileAcc;
+        char type;
+
+        if(sscanf(line,"Account:%d | %c",&fileAcc,&type) == 2)
+        {
+            if(fileAcc == acc)
+            {
+                if(type == 'W')
+                    streak = 0;
+                else
+                    streak++;
+            }
+        }
     }
 
-    printf("🔥 No-spend streak: %d days\n",streak);
+    printf("🔥 No-spend streak: %d transactions\n",streak);
 
     fclose(log);
 }
 
 void logTransaction(int acc,double amt,char type)
 {
-    FILE *log=fopen("transactions.txt","a");
+    FILE *log = fopen("transactions.txt","a");
+    if(log == NULL)
+    {
+        printf("Error writing transaction\n");
+        return;
+    }
 
     time_t t;
     time(&t);
@@ -245,13 +315,24 @@ void logTransaction(int acc,double amt,char type)
 
 void miniStatement(int acc)
 {
-    FILE *log=fopen("transactions.txt","r");
+    FILE *log = fopen("transactions.txt","r");
+    if(log == NULL)
+    {
+        printf("No transaction history found\n");
+        return;
+    }
+
     char line[200];
 
     while(fgets(line,200,log))
     {
-        if(atoi(&line[8])==acc)
-            printf("%s",line);
+        int fileAcc;
+
+        if(sscanf(line,"Account:%d",&fileAcc) == 1)
+        {
+            if(fileAcc == acc)
+                printf("%s",line);
+        }
     }
 
     fclose(log);
